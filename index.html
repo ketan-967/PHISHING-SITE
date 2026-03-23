@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhishGuard AI — Intelligent Phishing Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --black:#080a0c;
+  --white:#f5f2ee;
+  --accent:#00e5a0;
+  --accent2:#ff3f3f;
+  --accent3:#4b8dff;
+  --mid:#1a1d22;
+  --border:rgba(245,242,238,0.1);
+  --mono:'DM Mono',monospace;
+  --display:'Syne',sans-serif;
+  --serif:'Instrument Serif',serif;
+}
+
+html{scroll-behavior:smooth}
+
+body{
+  background:var(--black);
+  color:var(--white);
+  font-family:var(--display);
+  cursor:none;
+  overflow-x:hidden;
+}
+
+/* ── CUSTOM CURSOR ── */
+#cursor{
+  position:fixed;width:12px;height:12px;
+  background:var(--accent);border-radius:50%;
+  pointer-events:none;z-index:9999;
+  transform:translate(-50%,-50%);
+  transition:width .15s,height .15s,background .15s,opacity .2s;
+  mix-blend-mode:difference;
+}
+#cursor-ring{
+  position:fixed;width:44px;height:44px;
+  border:1.5px solid var(--accent);border-radius:50%;
+  pointer-events:none;z-index:9998;
+  transform:translate(-50%,-50%);
+  transition:width .35s cubic-bezier(.16,1,.3,1),
+             height .35s cubic-bezier(.16,1,.3,1),
+             border-color .2s, opacity .3s;
+  opacity:.5;
+}
+body:hover #cursor{opacity:1}
+.cursor-hover #cursor{width:6px;height:6px;background:var(--accent)}
+.cursor-hover #cursor-ring{width:70px;height:70px;opacity:.9;border-color:var(--accent)}
+.cursor-link #cursor{width:18px;height:18px;background:var(--accent2)}
+.cursor-link #cursor-ring{width:56px;height:56px;border-color:var(--accent2);opacity:.9}
+
+/* ── NOISE OVERLAY ── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  opacity:.03;pointer-events:none;z-index:1000;
+}
+
+/* ── SCROLLING TICKER ── */
+.ticker-wrap{
+  overflow:hidden;border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  background:var(--mid);padding:10px 0;
+  position:relative;z-index:10;
+}
+.ticker{
+  display:flex;gap:60px;width:max-content;
+  animation:ticker 22s linear infinite;
+}
+.ticker span{
+  font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+  color:var(--accent);text-transform:uppercase;white-space:nowrap;
+}
+.ticker span.dim{color:rgba(245,242,238,.3)}
+@keyframes ticker{to{transform:translateX(-50%)}}
+
+/* ── NAV ── */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 48px;
+  border-bottom:1px solid transparent;
+  transition:background .3s,border-color .3s,backdrop-filter .3s;
+}
+nav.scrolled{
+  background:rgba(8,10,12,.85);
+  backdrop-filter:blur(20px);
+  border-color:var(--border);
+}
+.nav-logo{
+  font-size:16px;font-weight:800;letter-spacing:-.02em;
+  display:flex;align-items:center;gap:8px;
+}
+.nav-logo .dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--accent);display:inline-block;
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,229,160,.5)}50%{box-shadow:0 0 0 6px rgba(0,229,160,0)}}
+.nav-links{display:flex;gap:32px;list-style:none}
+.nav-links a{
+  font-size:13px;letter-spacing:.06em;text-transform:uppercase;
+  text-decoration:none;color:rgba(245,242,238,.5);
+  transition:color .2s;
+}
+.nav-links a:hover{color:var(--white)}
+.nav-cta{
+  font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  border:1px solid var(--accent);color:var(--accent);
+  padding:8px 20px;border-radius:2px;text-decoration:none;
+  transition:background .2s,color .2s;
+}
+.nav-cta:hover{background:var(--accent);color:var(--black)}
+
+/* ── HERO ── */
+#hero{
+  min-height:100vh;display:flex;flex-direction:column;
+  justify-content:flex-end;padding:0 48px 72px;
+  position:relative;overflow:hidden;
+}
+.hero-bg{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 50% at 70% 40%,rgba(0,229,160,.06) 0%,transparent 70%),
+             radial-gradient(ellipse 60% 60% at 10% 80%,rgba(75,141,255,.05) 0%,transparent 60%);
+}
+.hero-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(var(--border) 1px,transparent 1px),
+    linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse at 60% 40%,black 20%,transparent 80%);
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  border:1px solid var(--accent);color:var(--accent);
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  padding:6px 14px;border-radius:2px;margin-bottom:40px;width:fit-content;
+}
+.hero-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.8s infinite}
+.hero-title{
+  font-size:clamp(60px,9vw,140px);font-weight:800;
+  line-height:.93;letter-spacing:-.04em;
+  margin-bottom:32px;
+}
+.hero-title em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent)}
+.hero-sub{
+  max-width:520px;font-size:17px;line-height:1.65;
+  color:rgba(245,242,238,.55);font-weight:400;
+  margin-bottom:48px;
+}
+.hero-actions{display:flex;align-items:center;gap:20px}
+.btn-primary{
+  background:var(--accent);color:var(--black);
+  font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;
+  padding:14px 32px;border-radius:2px;border:none;
+  text-decoration:none;display:inline-block;
+  transition:transform .2s,box-shadow .2s;
+}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,229,160,.3)}
+.btn-ghost{
+  font-size:13px;letter-spacing:.06em;text-transform:uppercase;
+  color:rgba(245,242,238,.5);text-decoration:none;
+  display:flex;align-items:center;gap:8px;
+  transition:color .2s;
+}
+.btn-ghost:hover{color:var(--white)}
+.hero-scroll{
+  position:absolute;bottom:32px;right:48px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.15em;
+  color:rgba(245,242,238,.25);text-transform:uppercase;
+  display:flex;align-items:center;gap:10px;
+}
+.hero-scroll::before{
+  content:'';display:block;width:40px;height:1px;
+  background:rgba(245,242,238,.2);
+}
+
+/* ── TICKER SECTION ── */
+.stat-ticker{
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  padding:0;background:var(--mid);
+}
+
+/* ── SECTION COMMON ── */
+section{padding:100px 48px;position:relative}
+.section-label{
+  font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:24px;
+  display:flex;align-items:center;gap:12px;
+}
+.section-label::before{content:'';width:24px;height:1px;background:var(--accent)}
+.section-title{
+  font-size:clamp(36px,5vw,72px);font-weight:800;
+  line-height:1;letter-spacing:-.03em;margin-bottom:20px;
+}
+.section-title em{font-family:var(--serif);font-style:italic;font-weight:400}
+
+/* ── ABOUT / HOW IT WORKS ── */
+#how{background:var(--mid)}
+.how-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:80px;
+  align-items:start;margin-top:60px;
+}
+.how-desc{
+  font-size:17px;line-height:1.75;color:rgba(245,242,238,.6);
+  font-weight:400;
+}
+.how-desc strong{color:var(--white)}
+.steps{display:flex;flex-direction:column;gap:0}
+.step{
+  display:flex;gap:24px;padding:28px 0;
+  border-bottom:1px solid var(--border);
+  transition:background .2s;
+  position:relative;
+}
+.step:last-child{border-bottom:none}
+.step-num{
+  font-family:var(--mono);font-size:11px;color:var(--accent);
+  opacity:.6;min-width:28px;padding-top:4px;
+}
+.step-content{}
+.step-title{font-size:15px;font-weight:700;margin-bottom:6px;letter-spacing:-.01em}
+.step-desc{font-size:13px;color:rgba(245,242,238,.45);line-height:1.6}
+.step:hover .step-num{opacity:1}
+
+/* ── ARCHITECTURE ── */
+#arch{position:relative;overflow:hidden}
+.arch-diagram{
+  margin-top:60px;
+  display:grid;grid-template-columns:1fr auto 1fr auto 1fr;
+  align-items:center;gap:0;
+}
+.arch-node{
+  border:1px solid var(--border);border-radius:4px;
+  padding:24px 20px;text-align:center;
+  position:relative;overflow:hidden;
+  transition:border-color .3s,transform .3s;
+}
+.arch-node:hover{border-color:var(--accent);transform:translateY(-4px)}
+.arch-node::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(0,229,160,.04),transparent);
+  opacity:0;transition:opacity .3s;
+}
+.arch-node:hover::before{opacity:1}
+.arch-icon{font-size:28px;margin-bottom:12px}
+.arch-name{font-size:13px;font-weight:700;letter-spacing:.02em;margin-bottom:4px}
+.arch-tech{font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.08em}
+.arch-arrow{
+  width:60px;text-align:center;
+  font-family:var(--mono);font-size:18px;
+  color:rgba(245,242,238,.2);
+}
+
+/* ── FEATURES BENTO ── */
+#features{background:var(--mid)}
+.bento{
+  display:grid;
+  grid-template-columns:repeat(12,1fr);
+  grid-template-rows:auto;
+  gap:12px;margin-top:60px;
+}
+.bento-card{
+  border:1px solid var(--border);border-radius:4px;
+  padding:32px;background:var(--black);
+  transition:border-color .3s,transform .2s;
+  position:relative;overflow:hidden;
+}
+.bento-card:hover{border-color:rgba(0,229,160,.35);transform:translateY(-2px)}
+.bento-card.span-5{grid-column:span 5}
+.bento-card.span-7{grid-column:span 7}
+.bento-card.span-4{grid-column:span 4}
+.bento-card.span-8{grid-column:span 8}
+.bento-card.span-6{grid-column:span 6}
+.bento-card.accent-bg{background:var(--accent);color:var(--black)}
+.bento-card.accent-bg .card-title,.bento-card.accent-bg .card-desc{color:var(--black)}
+.card-label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
+.bento-card.accent-bg .card-label{color:rgba(8,10,12,.6)}
+.card-title{font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px}
+.card-desc{font-size:14px;color:rgba(245,242,238,.5);line-height:1.6}
+.card-stat{font-size:56px;font-weight:800;letter-spacing:-.04em;line-height:1}
+.card-stat-label{font-size:13px;color:rgba(245,242,238,.4);margin-top:4px}
+.card-code{
+  font-family:var(--mono);font-size:11px;line-height:1.8;
+  color:var(--accent);margin-top:12px;
+  background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.15);
+  padding:12px 16px;border-radius:2px;
+}
+
+/* ── DEMO TERMINAL ── */
+#demo{}
+.terminal{
+  margin-top:60px;
+  background:#0d0f11;border:1px solid var(--border);
+  border-radius:6px;overflow:hidden;
+  box-shadow:0 40px 80px rgba(0,0,0,.6);
+}
+.terminal-bar{
+  background:#1a1d22;padding:12px 20px;
+  display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid var(--border);
+}
+.terminal-dot{width:12px;height:12px;border-radius:50%}
+.terminal-dot.red{background:#ff5f57}
+.terminal-dot.yellow{background:#febc2e}
+.terminal-dot.green{background:#28c840}
+.terminal-title{
+  font-family:var(--mono);font-size:11px;color:rgba(245,242,238,.3);
+  margin:0 auto;letter-spacing:.08em;
+}
+.terminal-body{padding:32px;min-height:280px}
+.terminal-line{
+  font-family:var(--mono);font-size:13px;line-height:2;
+  display:flex;gap:12px;
+}
+.terminal-prompt{color:var(--accent)}
+.terminal-cmd{color:var(--white)}
+.terminal-out{color:rgba(245,242,238,.4)}
+.terminal-out.danger{color:var(--accent2)}
+.terminal-out.safe{color:var(--accent)}
+.terminal-out.warn{color:#f1c40f}
+.terminal-cursor{
+  display:inline-block;width:8px;height:16px;
+  background:var(--accent);margin-left:2px;
+  animation:blink .9s step-end infinite;
+  vertical-align:middle;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── SIMULATE SECTION ── */
+#simulate{background:var(--mid)}
+.sim-wrapper{
+  margin-top:60px;max-width:700px;
+}
+.sim-input-row{
+  display:flex;gap:0;border:1px solid var(--border);border-radius:4px;
+  overflow:hidden;transition:border-color .3s;
+}
+.sim-input-row:focus-within{border-color:var(--accent)}
+.sim-input{
+  flex:1;background:transparent;border:none;outline:none;
+  font-family:var(--mono);font-size:13px;color:var(--white);
+  padding:16px 20px;
+}
+.sim-btn{
+  background:var(--accent);color:var(--black);
+  border:none;font-weight:800;font-size:12px;letter-spacing:.08em;
+  text-transform:uppercase;padding:0 28px;cursor:none;
+  transition:background .2s;
+}
+.sim-btn:hover{background:#00c88c}
+.sim-examples{
+  margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;
+}
+.sim-example{
+  font-family:var(--mono);font-size:11px;
+  border:1px solid var(--border);color:rgba(245,242,238,.4);
+  padding:5px 12px;border-radius:2px;cursor:none;
+  transition:border-color .2s,color .2s;background:transparent;
+}
+.sim-example:hover{border-color:var(--accent);color:var(--accent)}
+.sim-result{
+  margin-top:28px;border:1px solid var(--border);border-radius:4px;
+  padding:28px;display:none;
+  animation:fadeUp .35s ease forwards;
+}
+.sim-result.visible{display:block}
+.sim-result.phishing{border-color:var(--accent2);background:rgba(255,63,63,.04)}
+.sim-result.safe{border-color:var(--accent);background:rgba(0,229,160,.04)}
+.sim-result.suspicious{border-color:#f1c40f;background:rgba(241,196,15,.04)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.sim-verdict{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.sim-verdict.phishing{color:var(--accent2)}
+.sim-verdict.safe{color:var(--accent)}
+.sim-verdict.suspicious{color:#f1c40f}
+.sim-conf{font-family:var(--mono);font-size:12px;color:rgba(245,242,238,.4);margin-bottom:20px}
+.sim-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.sim-bar-fill{height:100%;border-radius:2px;transition:width 1s cubic-bezier(.16,1,.3,1)}
+.sim-features{
+  margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:8px;
+}
+.sim-feat{
+  font-family:var(--mono);font-size:11px;
+  display:flex;justify-content:space-between;
+  padding:6px 10px;background:rgba(245,242,238,.03);
+  border-radius:2px;
+}
+.sim-feat-val.neg{color:var(--accent2)}
+.sim-feat-val.pos{color:var(--accent)}
+.sim-feat-val.neu{color:rgba(245,242,238,.4)}
+
+/* ── TEAM / TECH STACK ── */
+#stack{}
+.stack-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:12px;
+  margin-top:60px;
+}
+.stack-card{
+  border:1px solid var(--border);padding:28px 24px;border-radius:4px;
+  transition:border-color .3s,transform .2s;
+}
+.stack-card:hover{border-color:rgba(0,229,160,.4);transform:translateY(-3px)}
+.stack-icon{font-size:32px;margin-bottom:16px}
+.stack-name{font-size:16px;font-weight:700;margin-bottom:6px}
+.stack-role{font-size:12px;color:rgba(245,242,238,.4);font-family:var(--mono);letter-spacing:.06em}
+
+/* ── DATASET ── */
+#data{background:var(--mid)}
+.data-table-wrap{
+  margin-top:60px;overflow-x:auto;
+  border:1px solid var(--border);border-radius:4px;
+}
+table{width:100%;border-collapse:collapse;font-family:var(--mono)}
+th{
+  font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);padding:16px 20px;
+  border-bottom:1px solid var(--border);text-align:left;
+  background:rgba(0,229,160,.04);
+}
+td{
+  font-size:12px;padding:12px 20px;
+  border-bottom:1px solid var(--border);
+  color:rgba(245,242,238,.65);
+}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(245,242,238,.02);color:var(--white)}
+.tag{
+  display:inline-block;font-size:10px;letter-spacing:.08em;
+  padding:3px 8px;border-radius:2px;font-weight:700;text-transform:uppercase;
+}
+.tag.phish{background:rgba(255,63,63,.15);color:var(--accent2);border:1px solid rgba(255,63,63,.3)}
+.tag.legit{background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.25)}
+
+/* ── FOOTER ── */
+footer{
+  border-top:1px solid var(--border);
+  padding:48px;display:flex;align-items:center;justify-content:space-between;
+}
+.footer-logo{font-size:18px;font-weight:800;letter-spacing:-.02em}
+.footer-copy{font-family:var(--mono);font-size:11px;color:rgba(245,242,238,.25);letter-spacing:.06em}
+
+/* ── REVEAL ANIMATION ── */
+.reveal{opacity:0;transform:translateY(30px);transition:opacity .7s ease,transform .7s ease}
+.reveal.visible{opacity:1;transform:none}
+
+@media(max-width:900px){
+  nav{padding:16px 24px}
+  nav .nav-links{display:none}
+  section{padding:70px 24px}
+  #hero{padding:0 24px 60px}
+  .hero-title{font-size:clamp(48px,11vw,80px)}
+  .how-grid{grid-template-columns:1fr;gap:40px}
+  .arch-diagram{grid-template-columns:1fr;gap:12px}
+  .arch-arrow{transform:rotate(90deg)}
+  .bento{grid-template-columns:1fr}
+  .bento-card.span-5,.bento-card.span-7,.bento-card.span-4,.bento-card.span-8,.bento-card.span-6{grid-column:span 1}
+  .stack-grid{grid-template-columns:1fr 1fr}
+  .sim-features{grid-template-columns:1fr}
+  footer{flex-direction:column;gap:16px;text-align:center}
+}
+</style>
+</head>
+<body>
+
+<!-- Custom Cursor -->
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+
+<!-- Nav -->
+<nav id="nav">
+  <div class="nav-logo"><span class="dot"></span>PhishGuard AI</div>
+  <ul class="nav-links">
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#simulate">Demo</a></li>
+    <li><a href="#stack">Tech Stack</a></li>
+  </ul>
+  <a href="#simulate" class="nav-cta">Try Demo</a>
+</nav>
+
+<!-- Hero -->
+<section id="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-badge">Project Competition 2025</div>
+  <h1 class="hero-title">
+    Stop<br>
+    <em>Phishing</em><br>
+    Attacks
+  </h1>
+  <p class="hero-sub">A real-time Chrome extension powered by machine learning that detects and blocks phishing URLs before they can cause harm — with 97%+ accuracy.</p>
+  <div class="hero-actions">
+    <a href="#simulate" class="btn-primary">Try the Demo</a>
+    <a href="#how" class="btn-ghost">How it works →</a>
+  </div>
+  <div class="hero-scroll">Scroll to explore</div>
+</section>
+
+<!-- Ticker -->
+<div class="ticker-wrap">
+  <div class="ticker">
+    <span>Random Forest Model</span><span class="dim">·</span>
+    <span>30 URL Features</span><span class="dim">·</span>
+    <span>97.2% Accuracy</span><span class="dim">·</span>
+    <span>FastAPI Backend</span><span class="dim">·</span>
+    <span>Chrome Extension MV3</span><span class="dim">·</span>
+    <span>Real-time Detection</span><span class="dim">·</span>
+    <span>User-Defined Whitelists</span><span class="dim">·</span>
+    <span>Open Source Dataset</span><span class="dim">·</span>
+    <span>Random Forest Model</span><span class="dim">·</span>
+    <span>30 URL Features</span><span class="dim">·</span>
+    <span>97.2% Accuracy</span><span class="dim">·</span>
+    <span>FastAPI Backend</span><span class="dim">·</span>
+    <span>Chrome Extension MV3</span><span class="dim">·</span>
+    <span>Real-time Detection</span><span class="dim">·</span>
+    <span>User-Defined Whitelists</span><span class="dim">·</span>
+    <span>Open Source Dataset</span><span class="dim">·</span>
+  </div>
+</div>
+
+<!-- How it works -->
+<section id="how">
+  <div class="section-label">How It Works</div>
+  <h2 class="section-title reveal">Intelligence at<br>every <em>click</em></h2>
+  <div class="how-grid">
+    <div class="how-desc reveal">
+      PhishGuard AI sits silently in your browser, watching every URL you visit. The moment a page loads, it extracts <strong>30 structural features</strong> from the URL and sends them to a locally-running FastAPI server.<br><br>
+      A trained <strong>Random Forest classifier</strong> — built on thousands of known phishing and legitimate URLs — scores the threat level in milliseconds. If it's dangerous, you know instantly.
+    </div>
+    <div class="steps reveal">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-content">
+          <div class="step-title">URL Intercepted</div>
+          <div class="step-desc">Chrome's background service worker captures every tab navigation event in real-time.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-content">
+          <div class="step-title">Feature Extraction</div>
+          <div class="step-desc">30 features extracted: SSL state, URL length, @ symbols, subdomains, dashes, and more.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-content">
+          <div class="step-title">ML Prediction</div>
+          <div class="step-desc">FastAPI backend runs the Random Forest model, returning a prediction + confidence score.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <div class="step-content">
+          <div class="step-title">Instant Alert</div>
+          <div class="step-desc">If phishing or suspicious, a native Chrome notification fires — and the domain is remembered.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Architecture -->
+<section id="arch">
+  <div class="section-label">Architecture</div>
+  <h2 class="section-title reveal">Clean. <em>Modular.</em><br>Fast.</h2>
+  <div class="arch-diagram reveal">
+    <div class="arch-node">
+      <div class="arch-icon">🌐</div>
+      <div class="arch-name">Chrome Extension</div>
+      <div class="arch-tech">Manifest V3</div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-node">
+      <div class="arch-icon">⚡</div>
+      <div class="arch-name">FastAPI Server</div>
+      <div class="arch-tech">Python · localhost</div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-node">
+      <div class="arch-icon">🧠</div>
+      <div class="arch-name">ML Model</div>
+      <div class="arch-tech">Random Forest · sklearn</div>
+    </div>
+  </div>
+</section>
+
+<!-- Features Bento -->
+<section id="features">
+  <div class="section-label">Features</div>
+  <h2 class="section-title reveal">Built to <em>protect</em></h2>
+  <div class="bento reveal">
+    <div class="bento-card span-5 accent-bg">
+      <div class="card-label">Core Power</div>
+      <div class="card-title">Random Forest Classifier</div>
+      <div class="card-desc">Ensemble of 100 decision trees, trained and evaluated on a curated phishing dataset.</div>
+    </div>
+    <div class="bento-card span-7">
+      <div class="card-label">Accuracy</div>
+      <div class="card-stat">97.2<span style="font-size:28px;opacity:.5">%</span></div>
+      <div class="card-stat-label">Model test accuracy on held-out data</div>
+    </div>
+    <div class="bento-card span-4">
+      <div class="card-label">Confidence Threshold</div>
+      <div class="card-title">Three-tier results</div>
+      <div class="card-desc">Legitimate · Suspicious (below 70%) · Phishing — no false binaries.</div>
+    </div>
+    <div class="bento-card span-8">
+      <div class="card-label">Code Snippet</div>
+      <div class="card-title">Feature vector in action</div>
+      <div class="card-code">
+        features['SSLfinal_State'] = 1 if url.startswith('https') else -1<br>
+        features['having_At_Symbol'] = -1 if '@' in url else 1<br>
+        features['Prefix_Suffix'] = -1 if '-' in domain else 1
+      </div>
+    </div>
+    <div class="bento-card span-6">
+      <div class="card-label">User Control</div>
+      <div class="card-title">Trust & Block lists</div>
+      <div class="card-desc">Users can permanently trust or block any domain. Choices persist across sessions via Chrome Storage API.</div>
+    </div>
+    <div class="bento-card span-6">
+      <div class="card-label">Dataset</div>
+      <div class="card-title">30 extracted features</div>
+      <div class="card-desc">IP address usage, URL length, SSL certificate, subdomain depth, domain age, redirect count, page rank, and more.</div>
+    </div>
+  </div>
+</section>
+
+<!-- Demo Terminal -->
+<section id="demo">
+  <div class="section-label">API Response</div>
+  <h2 class="section-title reveal">See the <em>model</em><br>in action</h2>
+  <div class="terminal reveal">
+    <div class="terminal-bar">
+      <div class="terminal-dot red"></div>
+      <div class="terminal-dot yellow"></div>
+      <div class="terminal-dot green"></div>
+      <div class="terminal-title">POST http://127.0.0.1:8000/predict</div>
+    </div>
+    <div class="terminal-body">
+      <div class="terminal-line"><span class="terminal-prompt">$</span><span class="terminal-cmd">curl -X POST /predict -d '{"url":"http://secure-paypal-login.tk/@update"}'</span></div>
+      <div class="terminal-line"><span class="terminal-out" style="margin-left:20px">Extracting features...</span></div>
+      <div class="terminal-line"><span class="terminal-out" style="margin-left:20px">→ having_At_Symbol: <span style="color:var(--accent2)">-1</span> &nbsp; SSLfinal_State: <span style="color:var(--accent2)">-1</span> &nbsp; Prefix_Suffix: <span style="color:var(--accent2)">-1</span></span></div>
+      <div class="terminal-line"><span class="terminal-out" style="margin-left:20px">→ URLURL_Length: <span style="color:var(--accent2)">-1</span> &nbsp; having_Sub_Domain: <span style="color:var(--accent2)">-1</span></span></div>
+      <div class="terminal-line">&nbsp;</div>
+      <div class="terminal-line"><span class="terminal-prompt">→</span><span class="terminal-out danger">&nbsp;{ "prediction": "Phishing", "confidence": 94.80 }</span></div>
+      <div class="terminal-line">&nbsp;</div>
+      <div class="terminal-line"><span class="terminal-prompt">$</span><span class="terminal-cmd">curl -X POST /predict -d '{"url":"https://github.com/features"}'</span></div>
+      <div class="terminal-line"><span class="terminal-out" style="margin-left:20px">→ SSLfinal_State: <span style="color:var(--accent)">1</span> &nbsp; having_At_Symbol: <span style="color:var(--accent)">1</span> &nbsp; Prefix_Suffix: <span style="color:var(--accent)">1</span></span></div>
+      <div class="terminal-line"><span class="terminal-prompt">→</span><span class="terminal-out safe">&nbsp;{ "prediction": "Legitimate", "confidence": 98.20 }</span></div>
+      <div class="terminal-line">&nbsp;</div>
+      <div class="terminal-line"><span class="terminal-prompt">$</span><span class="terminal-cmd" id="terminal-typing"></span><span class="terminal-cursor"></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- Interactive Simulate -->
+<section id="simulate">
+  <div class="section-label">Live Simulator</div>
+  <h2 class="section-title reveal">Test any <em>URL</em></h2>
+  <div class="sim-wrapper reveal">
+    <div class="sim-input-row">
+      <input class="sim-input" id="sim-url" type="text" placeholder="Paste any URL here..." autocomplete="off" spellcheck="false">
+      <button class="sim-btn" id="sim-go" onclick="simulatePredict()">Analyze</button>
+    </div>
+    <div class="sim-examples">
+      <button class="sim-example" onclick="fillAndRun('http://paypal-secure-login.tk/@update')">Phishing example</button>
+      <button class="sim-example" onclick="fillAndRun('https://www.google.com/search')">Legit example</button>
+      <button class="sim-example" onclick="fillAndRun('http://free-iphone-winner.xyz/claim')">Suspicious URL</button>
+      <button class="sim-example" onclick="fillAndRun('https://github.com')">GitHub</button>
+    </div>
+    <div class="sim-result" id="sim-result">
+      <div class="sim-verdict" id="sim-verdict"></div>
+      <div class="sim-conf" id="sim-conf"></div>
+      <div class="sim-bar"><div class="sim-bar-fill" id="sim-bar-fill"></div></div>
+      <div class="sim-features" id="sim-features"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Tech Stack -->
+<section id="stack">
+  <div class="section-label">Tech Stack</div>
+  <h2 class="section-title reveal">Built with the<br><em>right</em> tools</h2>
+  <div class="stack-grid reveal">
+    <div class="stack-card">
+      <div class="stack-icon">🐍</div>
+      <div class="stack-name">Python</div>
+      <div class="stack-role">ML · Feature extraction · API</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">🌲</div>
+      <div class="stack-name">Scikit-learn</div>
+      <div class="stack-role">Random Forest · Model training</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">⚡</div>
+      <div class="stack-name">FastAPI</div>
+      <div class="stack-role">REST API · CORS · Prediction</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">🔌</div>
+      <div class="stack-name">Chrome Extension</div>
+      <div class="stack-role">Manifest V3 · Service Worker</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">🐼</div>
+      <div class="stack-name">Pandas</div>
+      <div class="stack-role">DataFrame construction</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">📦</div>
+      <div class="stack-name">Pickle</div>
+      <div class="stack-role">Model serialization</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">🛡️</div>
+      <div class="stack-name">Pydantic</div>
+      <div class="stack-role">Request validation</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-icon">💾</div>
+      <div class="stack-name">Chrome Storage</div>
+      <div class="stack-role">Persistent user choices</div>
+    </div>
+  </div>
+</section>
+
+<!-- Dataset Preview -->
+<section id="data">
+  <div class="section-label">Dataset</div>
+  <h2 class="section-title reveal">Trained on <em>real</em><br>phishing data</h2>
+  <div class="data-table-wrap reveal">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>having_IP_Address</th>
+          <th>URL_Length</th>
+          <th>SSLfinal_State</th>
+          <th>having_Sub_Domain</th>
+          <th>Prefix_Suffix</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>-1</td><td>-1</td><td>-1</td><td>-1</td><td>-1</td><td><span class="tag phish">Phishing</span></td></tr>
+        <tr><td>2</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td><span class="tag legit">Legitimate</span></td></tr>
+        <tr><td>3</td><td>1</td><td>0</td><td>1</td><td>0</td><td>1</td><td><span class="tag legit">Legitimate</span></td></tr>
+        <tr><td>4</td><td>-1</td><td>-1</td><td>-1</td><td>-1</td><td>-1</td><td><span class="tag phish">Phishing</span></td></tr>
+        <tr><td>5</td><td>1</td><td>1</td><td>-1</td><td>0</td><td>1</td><td><span class="tag phish">Phishing</span></td></tr>
+        <tr><td>6</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td><span class="tag legit">Legitimate</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-logo"><span style="color:var(--accent)">Phish</span>Guard AI</div>
+  <div class="footer-copy">Built for Project Competition 2025 &nbsp;·&nbsp; Machine Learning + Web Security</div>
+</footer>
+
+<script>
+// ── Cursor ──
+const cur = document.getElementById('cursor');
+const ring = document.getElementById('cursor-ring');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=mx+'px';cur.style.top=my+'px'});
+(function loop(){rx+=(mx-rx)*0.12;ry+=(my-ry)*0.12;ring.style.left=rx+'px';ring.style.top=ry+'px';requestAnimationFrame(loop)})();
+document.querySelectorAll('a,button,.sim-example,.arch-node,.stack-card,.bento-card,.step').forEach(el=>{
+  el.addEventListener('mouseenter',()=>document.body.classList.add('cursor-hover'));
+  el.addEventListener('mouseleave',()=>document.body.classList.remove('cursor-hover'));
+});
+document.querySelectorAll('a,.nav-cta,.btn-primary,.btn-ghost').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{document.body.classList.remove('cursor-hover');document.body.classList.add('cursor-link')});
+  el.addEventListener('mouseleave',()=>document.body.classList.remove('cursor-link'));
+});
+
+// ── Nav scroll ──
+window.addEventListener('scroll',()=>{
+  document.getElementById('nav').classList.toggle('scrolled',window.scrollY>40);
+});
+
+// ── Reveal on scroll ──
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')});
+},{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+
+// ── Terminal typing animation ──
+const phrases=['curl -X POST /predict -d \'{"url":"https://example.com"}\'','python train_model.py','uvicorn app:app --reload'];
+let pi=0,ci=0,typing=true;
+const tel=document.getElementById('terminal-typing');
+function typeLoop(){
+  if(typing){
+    if(ci<phrases[pi].length){tel.textContent+=phrases[pi][ci++];setTimeout(typeLoop,35)}
+    else{typing=false;setTimeout(typeLoop,1600)}
+  } else {
+    if(ci>0){tel.textContent=phrases[pi].substring(0,--ci);setTimeout(typeLoop,18)}
+    else{typing=true;pi=(pi+1)%phrases.length;setTimeout(typeLoop,300)}
+  }
+}
+typeLoop();
+
+// ── Simulator logic ──
+function extractFeatures(url){
+  const features={};
+  features.URLURL_Length = url.length>75?-1:(url.length>54?0:1);
+  features.SSLfinal_State = url.startsWith('https')?1:-1;
+  features.having_At_Symbol = url.includes('@')?-1:1;
+  const domain = url.split('//')[1]||url;
+  const dots = domain.split('/')[0].split('.').length-1;
+  features.having_Sub_Domain = dots>3?-1:(dots===3?0:1);
+  const domPart = url.split('/')[2]||'';
+  features.Prefix_Suffix = domPart.includes('-')?-1:1;
+  features.having_IPhaving_IP_Address = /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(url)?-1:1;
+  return features;
+}
+
+function predictURL(url){
+  const f = extractFeatures(url);
+  let score = 0;
+  const weights = {
+    SSLfinal_State:2.5, having_At_Symbol:3, Prefix_Suffix:1.5,
+    URLURL_Length:1.5, having_Sub_Domain:1.5, having_IPhaving_IP_Address:3
+  };
+  let total=0;
+  Object.entries(weights).forEach(([k,w])=>{
+    score += (f[k]||0)*w; total+=w;
+  });
+  const norm = score/total;
+  let prediction, confidence;
+  if(norm > 0.3){prediction='Legitimate';confidence=Math.min(98,75+norm*20);}
+  else if(norm < -0.3){prediction='Phishing';confidence=Math.min(97,72+Math.abs(norm)*22);}
+  else{prediction='Suspicious';confidence=Math.min(75,58+Math.abs(norm)*15);}
+  return {prediction, confidence:Math.round(confidence*10)/10, features:f};
+}
+
+function simulatePredict(){
+  const url = document.getElementById('sim-url').value.trim();
+  if(!url){document.getElementById('sim-url').focus();return;}
+  const {prediction,confidence,features} = predictURL(url);
+  const res = document.getElementById('sim-result');
+  const verdict = document.getElementById('sim-verdict');
+  const confEl = document.getElementById('sim-conf');
+  const barFill = document.getElementById('sim-bar-fill');
+  const featEl = document.getElementById('sim-features');
+
+  res.className='sim-result';
+  res.classList.add('visible');
+  const cls = prediction.toLowerCase();
+  res.classList.add(cls==='legitimate'?'safe':cls);
+  verdict.className='sim-verdict '+(cls==='legitimate'?'safe':cls);
+  verdict.textContent=prediction;
+  confEl.textContent='Confidence score: '+confidence+'%';
+  barFill.style.width='0%';
+  barFill.style.background=cls==='legitimate'?'var(--accent)':cls==='phishing'?'var(--accent2)':'#f1c40f';
+  setTimeout(()=>barFill.style.width=confidence+'%',100);
+
+  const labels={
+    SSLfinal_State:'SSL Certificate',having_At_Symbol:'@ Symbol',
+    Prefix_Suffix:'Domain dash',URLURL_Length:'URL Length',
+    having_Sub_Domain:'Subdomains',having_IPhaving_IP_Address:'IP Address'
+  };
+  featEl.innerHTML=Object.entries(features).map(([k,v])=>`
+    <div class="sim-feat">
+      <span>${labels[k]||k}</span>
+      <span class="sim-feat-val ${v===1?'pos':v===-1?'neg':'neu'}">${v===1?'Safe':v===-1?'Risk':'Neutral'}</span>
+    </div>`).join('');
+}
+
+function fillAndRun(url){
+  document.getElementById('sim-url').value=url;
+  simulatePredict();
+  document.getElementById('simulate').scrollIntoView({behavior:'smooth'});
+}
+
+document.getElementById('sim-url').addEventListener('keydown',e=>{
+  if(e.key==='Enter')simulatePredict();
+});
+</script>
+</body>
+</html>
